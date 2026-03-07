@@ -3,6 +3,9 @@ name: Playwright Tests
 on:
   push:
     branches: [main]
+  schedule:
+    # GitHub Actions cron uses UTC; 12:00 UTC = 8:00 AM ET (during EDT).
+    - cron: '0 12 * * *'
   pull_request:
 
 jobs:
