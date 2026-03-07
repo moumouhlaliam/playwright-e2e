@@ -1,0 +1,48 @@
+name: Playwright Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e:
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    env:
+      CONSIGNO_BASE_URL: ${{ vars.CONSIGNO_BASE_URL }}
+      CONSIGNO_EMAIL: ${{ secrets.CONSIGNO_EMAIL }}
+      CONSIGNO_PASSWORD: ${{ secrets.CONSIGNO_PASSWORD }}
+      CONSIGNO_INVALID_PASSWORD: ${{ secrets.CONSIGNO_INVALID_PASSWORD }}
+      CONSIGNO_RUN_NEGATIVE_LOGIN: "false"
+      CONSIGNO_REASSIGN_EMAIL: ${{ secrets.CONSIGNO_REASSIGN_EMAIL }}
+      CONSIGNO_DOCUMENT_PATH: Document/Test.pdf
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright tests
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
