@@ -15,13 +15,7 @@ const DEFAULT_BASE_URL = 'https://cloud.consigno.com';
 const DEFAULT_INVALID_PASSWORD = 'invalid-password';
 const DEFAULT_DOCUMENT_PATH = 'Document/Test.pdf';
 
-function loadDotEnvIfPresent(): void {
-  const envPath = path.resolve(process.cwd(), '.env');
-  if (!fs.existsSync(envPath)) {
-    return;
-  }
-
-  const content = fs.readFileSync(envPath, 'utf8');
+function applyDotEnvContent(content: string): void {
   const lines = content.split(/\r?\n/);
 
   for (const rawLine of lines) {
@@ -51,6 +45,20 @@ function loadDotEnvIfPresent(): void {
   }
 }
 
+function loadDotEnvIfPresent(): void {
+  const root = process.cwd();
+  const primaryPath = path.resolve(root, '.env');
+  if (fs.existsSync(primaryPath)) {
+    applyDotEnvContent(fs.readFileSync(primaryPath, 'utf8'));
+    return;
+  }
+
+  const fallbackPath = path.resolve(root, '.env.example');
+  if (fs.existsSync(fallbackPath)) {
+    applyDotEnvContent(fs.readFileSync(fallbackPath, 'utf8'));
+  }
+}
+
 function getRequiredEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -60,6 +68,32 @@ function getRequiredEnv(name: string): string {
   }
 
   return value;
+}
+
+function assertNotPlaceholder(name: string, value: string): void {
+  const normalized = value.toLowerCase();
+  const knownPlaceholders = new Set([
+    'your-email@example.com',
+    'your-password',
+    'changeme',
+    '<email>',
+    '<password>',
+  ]);
+  if (knownPlaceholders.has(normalized)) {
+    throw new Error(
+      `Environment variable "${name}" still uses a placeholder value. Update your .env with real credentials.`,
+    );
+  }
+}
+
+function assertLikelyEmail(name: string, value: string): void {
+  // Minimal email check to fail fast on obvious typos.
+  const emailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailLike.test(value)) {
+    throw new Error(
+      `Environment variable "${name}" has an invalid email format: "${value}".`,
+    );
+  }
 }
 
 function trimTrailingSlash(url: string): string {
@@ -72,9 +106,13 @@ export function getConsignoConfig(): ConsignoConfig {
   const baseUrl = trimTrailingSlash(process.env.CONSIGNO_BASE_URL ?? DEFAULT_BASE_URL);
   const email = getRequiredEnv('CONSIGNO_EMAIL');
   const password = getRequiredEnv('CONSIGNO_PASSWORD');
+  assertNotPlaceholder('CONSIGNO_EMAIL', email);
+  assertNotPlaceholder('CONSIGNO_PASSWORD', password);
+  assertLikelyEmail('CONSIGNO_EMAIL', email);
   const invalidPassword = process.env.CONSIGNO_INVALID_PASSWORD?.trim() || DEFAULT_INVALID_PASSWORD;
   const reassignEmail = process.env.CONSIGNO_REASSIGN_EMAIL?.trim() || email;
   const documentPath = process.env.CONSIGNO_DOCUMENT_PATH?.trim() || DEFAULT_DOCUMENT_PATH;
+  assertLikelyEmail('CONSIGNO_REASSIGN_EMAIL', reassignEmail);
 
   return {
     baseUrl,
